@@ -1,5 +1,8 @@
 import numpy as np
 from PIL import Image
+import sys
+
+np.set_printoptions(threshold=sys.maxsize)
 
 class DroneSimulator:
     """
@@ -71,7 +74,7 @@ class DroneSimulator:
         __amount_of_drone: int
             This is where we store amount_of_drone.
 
-        __stigmation_evaporation_speed: np.array(N)
+        __stigmation_evaporation_speed: np.ndarray(N)
             This is where we store stigmation_evaporation_speed.
 
         __reward_function: function
@@ -108,10 +111,17 @@ class DroneSimulator:
         self.__reward_function = reward_function
         self.__max_steps = max_steps
 
-        self.__env = np.asarray(Image.open(bitmap))
-        print(bitmap_array[bitmap_array > 0])
-        last_level = None
-        while
+        env = self.__bitmap_to_tensor(bitmap)
+
+        stigmergy_space = np.zeros((
+                self.__stigmation_evaporation_speed.shape[0],
+                self.__env.shape[1],
+                self.__env.shape[2]
+            ))
+        env = np.vstack((self.__env, stigmergy_space))
+
+
+        print(env)
 
 
     def step():
@@ -120,4 +130,62 @@ class DroneSimulator:
     def render():
         raise NotImplementedError
 
-    def __bitmap_to_tensor(bitmap):
+    def __bitmap_to_tensor(self, bitmap):
+        """
+        This methods converts a bitmap to a tensor according the representation
+        written above in the constructor, so we need at least two colours with
+        only one bit at 1 for obstacles and targets.
+
+        Parameters
+        ----------
+        bitmap : str
+            The path of the input bitmap
+
+        Raises
+        ------
+        RuntimeError
+            IOError: The path of the bitmap is invalid
+
+        Returns
+        -------
+        np.ndarray
+            the tensor obtained from bitmap
+        """
+        input_array = np.asarray(Image.open(bitmap))
+        rgb_bit_array = np.unpackbits(input_array, axis=2)
+        # here i have rgb_bit_array that is an array 2d with all cells are an
+        # array of bit
+        tensor = []
+        for i in range(0, 24):
+            level = rgb_bit_array[:, :, i]
+            if np.any(level):
+                # only level with at least 1 item are inserted in env
+                tensor.append(level)
+
+        if len(tensor) < 2:
+            raise Exception("At least obstacles and targets must be provided")
+        return np.asarray(tensor)
+
+
+    def __add_drones_in_batch(self, env, batch_size):
+        """
+        This methods adds drones and the batch_size dimension.
+
+        Parameters
+        ----------
+        env : np.ndarray
+            The environment without batch dimension and the drones
+        batch_size : int
+            The batch_size represent how big must be the batch dimension
+
+        Raises
+        ------
+        RuntimeError
+
+
+        Returns
+        -------
+        np.ndarray
+            the full environment
+        """
+        raise NotImplementedError
