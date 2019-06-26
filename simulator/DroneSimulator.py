@@ -122,10 +122,49 @@ class DroneSimulator:
 
 
         self.__env = self.__add_drones_in_batch(env, batch_size, amount_of_drone)
-        print(self.__env)
 
 
-    def step():
+    def step(actions):
+        """
+        This methods allow to take actions for all drones and in all
+        batch dimensions.
+
+        Parameters
+        ----------
+        actions : np.array[batch_size, amount_of_drones, action_dimension]
+            The actions must represent all the action taken by the drones in all
+            dimension, the order of the drones must be in according to the id of
+            the drones, so a drone with id 1 must be the first action.
+            action_dimension: 4 + stigmergy_level * 2
+                - First 4 are cardinal dimension, they represent the movement,
+                  so es [1, 0, 0, 0], this drone will move to the top of the
+                  screen only 0 and 1 are allowed for the dimension.
+                - Other levels will be the radius and intensity for each action
+                  in the stigmergy level, so es: [0, 0] no action in the level
+                  will be taken, [5, 3]: in this stigmergy level the drone
+                  leaves 3 in a radius of 5 around itself
+
+        Raises
+        ------
+        RuntimeError
+
+
+        Returns
+        -------
+        (observation, reward, done)
+            observation :
+                np.array[batch_size, amount_of_drones, observation_range]
+                    this will be a slice of the full environment in the
+                    observation_range around the each drone.
+            reward : np.array
+                the reward function will be ran in each batch dimension with
+                input the full environment, the array of result will be returned
+                here.
+            done : bool
+                will be true if the max_steps is reached or all targets will be 
+                achieved by drones, else will be false
+
+        """
         raise NotImplementedError
 
     def render():
