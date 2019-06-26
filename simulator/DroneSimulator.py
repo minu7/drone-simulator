@@ -121,7 +121,7 @@ class DroneSimulator:
         env = np.vstack((env, stigmergy_space))
 
 
-        self.__env = self.__add_drones_in_batch(env, batch_size)
+        self.__env = self.__add_drones_in_batch(env, batch_size, amount_of_drone)
         print(self.__env)
 
 
@@ -168,7 +168,7 @@ class DroneSimulator:
         return np.asarray(tensor)
 
 
-    def __add_drones_in_batch(self, env, batch_size):
+    def __add_drones_in_batch(self, env, batch_size, amount_of_drone):
         """
         This methods adds drones and the batch_size dimension.
 
@@ -189,5 +189,18 @@ class DroneSimulator:
         np.ndarray
             the full environment
         """
-        # env = env[np.newaxis, ...]
+        # for the creation of drone_level i create an array with the dimension
+        # of the other levels with only zeros, I add many ones as many as the
+        # number of drones, i reshape the result to the corresponding dimension,
+        # then the result will be shuffled
+        drone_array = np.zeros(env.shape[1] * env.shape[2])
+        drone_array[:amount_of_drone] = 1
+        np.random.shuffle(drone_array)
+        drone_level = np.reshape(drone_array, env.shape[1:3])
+        drone_level = drone_level[np.newaxis, ...]
+        env = np.vstack((drone_level, env))
+        # adding batch dimension
+        env = env[np.newaxis, ...]
+        env = np.repeat(env, batch_size, axis=0)
+
         return env
