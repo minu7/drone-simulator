@@ -115,13 +115,14 @@ class DroneSimulator:
 
         stigmergy_space = np.zeros((
                 self.__stigmation_evaporation_speed.shape[0],
-                self.__env.shape[1],
-                self.__env.shape[2]
+                env.shape[1],
+                env.shape[2]
             ))
-        env = np.vstack((self.__env, stigmergy_space))
+        env = np.vstack((env, stigmergy_space))
 
 
-        print(env)
+        self.__env = self.__add_drones_in_batch(env, batch_size)
+        print(self.__env)
 
 
     def step():
@@ -188,4 +189,5 @@ class DroneSimulator:
         np.ndarray
             the full environment
         """
-        raise NotImplementedError
+        # env = env[np.newaxis, ...]
+        return env
