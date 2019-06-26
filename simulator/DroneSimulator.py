@@ -131,6 +131,7 @@ class DroneSimulator:
     def render():
         raise NotImplementedError
 
+
     def __bitmap_to_tensor(self, bitmap):
         """
         This methods converts a bitmap to a tensor according the representation
@@ -194,7 +195,7 @@ class DroneSimulator:
         # number of drones, i reshape the result to the corresponding dimension,
         # then the result will be shuffled
         drone_array = np.zeros(env.shape[1] * env.shape[2])
-        drone_array[:amount_of_drone] = 1
+        drone_array[:amount_of_drone] = np.arange(amount_of_drone)
         np.random.shuffle(drone_array)
         drone_level = np.reshape(drone_array, env.shape[1:3])
         drone_level = drone_level[np.newaxis, ...]
