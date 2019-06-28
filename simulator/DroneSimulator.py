@@ -1,6 +1,8 @@
+import sys
+import random
+
 import numpy as np
 from PIL import Image
-import sys
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -42,7 +44,7 @@ class DroneSimulator:
             The observation range will be a square with a length of the side
             equal to the provided observation_range.
 
-        amount_of_drone: int
+        amount_of_drones: int
             The amount of drone that will be random positioned in the
             environment.
 
@@ -83,7 +85,7 @@ class DroneSimulator:
             This is where we store observation_range.
 
         __amount_of_drones: int
-            This is where we store amount_of_drone.
+            This is where we store amount_of_drones.
 
         __stigmation_evaporation_speed: np.ndarray(N)
             This is where we store stigmation_evaporation_speed.
@@ -122,26 +124,45 @@ class DroneSimulator:
         self.__reward_function = reward_function
         self.__max_steps = max_steps
 
+        # env and collision are divided only for render purpose
         self.__env = np.array([])
         self.__no_collision = np.array([])
         self.__targets = np.array([])
 
         self.__parse_bitmap(bitmap, collision_detection)
 
-        self.__stigmergy_space = np.zeros((
-                self.__stigmation_evaporation_speed.shape[0],
-                self.__env.shape[1],
-                self.__env.shape[2]
-            ))
+        # The collision will be detected only with this matrix because contain
+        # all info necessary
+        self.__collision = np.sum(self.__env, axis = 0)
+        self.__collision[self.__collision > 0] = 1
 
-        self.__drones_position = np.array([])
-        self.__drones_velocity = np.array([])
+        # Initial position equal to -1 is for see which drones must be
+        # positioned yet
+        self.__drones_position = np.full((amount_of_drones, 2), -1)
+        self.__drones_velocity = np.zeros((amount_of_drones, 2))
         self.__drawn_drones = np.array([])
 
-        print(self.__env)
-        print(self.__no_collision)
-        print(self.__targets)
-        # self.__init_drones_and_batch_dimension()
+        self.__stigmergy_space = np.zeros((
+                self.__stigmation_evaporation_speed.shape[0],
+                self.__targets.shape[0],
+                self.__targets.shape[1]
+            ))
+
+        # Only for stigmergy_space and drones the batch dimension will be added
+        # because is the only 2 levels that can change beetween batch the other
+        # will be fixed
+
+        self.__stigmergy_space = self.__add_batch_dimension(
+            self.__stigmergy_space
+        )
+        self.__drones_velocity = self.__add_batch_dimension(
+            self.__drones_velocity
+        )
+        self.__drones_position = self.__add_batch_dimension(
+            self.__drones_position
+        )
+
+        self.__init_drones()
 
 
     def step(actions):
@@ -241,18 +262,18 @@ class DroneSimulator:
                 if level_founded == 0:
                     # first level are targets
                     self.__targets = np.asarray(level)
-                    level_founded += 1
                 else:
                     if collision_detection[level_founded - 1]:
                         env.append(level)
                     else:
                         no_collision.append(level)
+                level_founded += 1
 
         self.__env = np.asarray(env)
         self.__no_collision = np.asarray(no_collision)
 
 
-    def __init_drones_and_batch_dimension(self):
+    def __init_drones(self):
         """
         This methods return drones and the batch_size dimension.
 
@@ -267,27 +288,17 @@ class DroneSimulator:
         Returns
         -------
         This method has side effect to the object, so it will change:
-            - self.__env:
-                Batch dimension will be added
-            - self.__no_collision:
-                Batch dimension will be added
             - self.__drones_position:
                 Drones will be created and positioned in batch dimension
-            - self.__drones_velocity:
-                The initial velocity of all drones will be zero
-            - self.__stigmergy_space:
-                Batch dimension will be added
         """
-        # adding batch dimension
-        env = env[np.newaxis, ...]
-        env = np.repeat(env, batch_size, axis=0)
+        position = np.asarray([
+            random.randint(0, self.__targets.shape[0] - 1),
+            random.randint(0, self.__targets.shape[1] - 1)
+        ])
 
 
 
-        return env, 1, 1
-
-
-    def __render(self, batch = None):
+    def __render(self):
         """
         This method create a level for each drones and draw drones one for
         level.
@@ -296,6 +307,9 @@ class DroneSimulator:
 
         Parameters
         ----------
+        batch: int
+            only the provided batch will be rendered, if None all batch will be
+            rendered
 
         Raises
         ------
@@ -305,11 +319,12 @@ class DroneSimulator:
         -------
 
         This method has side effect to the object, so it will change:
-            - self.__env:
-                Batch dimension will be added
+            - self.__drawn_drones:
+                The drones will be rendered one for level
 
         """
         raise NotImplementedError
+
 
     def __detect_collision(self):
         """
@@ -328,3 +343,64 @@ class DroneSimulator:
 
         """
         raise NotImplementedError
+
+    def __drawn_drone(self, positionVelocity):
+        """
+        This method return a level with a drone rendered in the provided
+        position.
+        This function must be called after the parsing of bitmap and init the
+        batch dimension
+
+        Parameters
+        ----------
+            positionVelocity: np.array(4)
+                first two elements of array represent position, other two are
+                for velocity
+
+        Raises
+        ------
+        RuntimeError
+
+        Returns
+        -------
+        np.array()
+            Represent the level with the drones
+
+        """
+        level = self.__stigmergy_space = np.zeros((
+                self.__targets.shape[0],
+                self.__targets.shape[1]
+            ))
+        # This is for uninitialized drones
+        if position[0] < 0 or position[1] < 0:
+            return level
+        # The drone for now it's a simple square
+        # velocity is provided for future better representation of drone
+        # TIPS: the bigger margin is + 2 because is not included in the slice
+        level[position[0] - 1 : position[0] + 2,
+            position[1] - 1 : position[1] + 2] = 1
+        return level
+
+    def __add_batch_dimension(self, matrix):
+        """
+        This function add batch dimension and repeat the inital matrix on this
+        axis.
+
+        Parameters
+        ----------
+            matrix: np.array
+                initial matrix
+
+        Raises
+        ------
+        RuntimeError
+
+        Returns
+        -------
+        np.array()
+            Represent the new matrix
+
+        """
+        matrix = matrix[np.newaxis, ...]
+        matrix = np.repeat(matrix, self.__batch_size, axis=0)
+        return matrix
