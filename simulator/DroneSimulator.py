@@ -140,7 +140,11 @@ class DroneSimulator:
         # positioned yet
         self.__drones_position = np.full((amount_of_drones, 2), -1)
         self.__drones_velocity = np.zeros((amount_of_drones, 2))
-        self.__drawn_drones = np.array([])
+        self.__drawn_drones = np.zeros((
+                amount_of_drones,
+                self.__targets.shape[0],
+                self.__targets.shape[1]
+            ))
 
         self.__stigmergy_space = np.zeros((
                 self.__stigmation_evaporation_speed.shape[0],
@@ -161,8 +165,12 @@ class DroneSimulator:
         self.__drones_position = self.__add_batch_dimension(
             self.__drones_position
         )
+        self.__drawn_drones = self.__add_batch_dimension(
+            self.__drawn_drones
+        )
 
         self.__init_drones()
+        # print(self.__drawn_drones)
 
 
     def step(actions):
@@ -210,6 +218,8 @@ class DroneSimulator:
         raise NotImplementedError
 
     def render():
+        if self.__batch_size > 1:
+            raise Exception("render is allowed only with batch_size equal to 1")
         raise NotImplementedError
 
 
@@ -291,14 +301,22 @@ class DroneSimulator:
             - self.__drones_position:
                 Drones will be created and positioned in batch dimension
         """
-        position = np.asarray([
-            random.randint(0, self.__targets.shape[0] - 1),
-            random.randint(0, self.__targets.shape[1] - 1)
-        ])
+        for batchIndex in range(self.__batch_size):
+            droneIndex = 0
+            while droneIndex < len(self.__drones_position[batchIndex]):
+                self.__drones_position[batchIndex][droneIndex] =  np.asarray([
+                    random.randint(0, self.__targets.shape[0] - 1),
+                    random.randint(0, self.__targets.shape[1] - 1)
+                ])
+                self.__render(batchIndex)
+                # a drone is correctly positioned if it was rendered in a level
+                # and it not collides with environment and other drones
+                # a drone is not rendered if it leaves the map.
+                if np.any(self.__drones_position[batchIndex][droneIndex]) and not self.__detect_collision(batchIndex):
+                    droneIndex += 1
 
 
-
-    def __render(self):
+    def __render(self, batchIndex = None):
         """
         This method create a level for each drones and draw drones one for
         level.
@@ -323,10 +341,47 @@ class DroneSimulator:
                 The drones will be rendered one for level
 
         """
-        raise NotImplementedError
+        dronePositionVelocity = np.concatenate((self.__drones_position,
+            self.__drones_velocity), 2)
+        if batchIndex is None:
+            for i in range(self.__batch_size):
+                self.__drawn_drones[i] = self.__render_batch(
+                    dronePositionVelocity[i])
+        else:
+            self.__drawn_drones[batchIndex] = self.__render_batch(
+                dronePositionVelocity[batchIndex])
 
 
-    def __detect_collision(self):
+    def __render_batch(self, batch_drone_level):
+        """
+        This method create a level for each drones and draw drones one for
+        level for the provided batch
+        This representation make easy check collision and plot the actual
+        situation of the environment.
+
+        Parameters
+        ----------
+        batch_drone_level: np.array
+            The drone position level of the batch that must be rendered
+
+        Raises
+        ------
+        RuntimeError
+
+        Returns
+        -------
+
+        This method has side effect to the object, so it will change:
+            - self.__drawn_drones:
+                The drones will be rendered one for level
+
+        """
+        return np.apply_along_axis(self.__draw_drone, 1,
+            batch_drone_level)
+
+
+
+    def __detect_collision(self, batchIndex):
         """
         This method return true there is a collision in this actual situation.
 
@@ -342,9 +397,14 @@ class DroneSimulator:
         bool
 
         """
-        raise NotImplementedError
+        # tmp is useful for test collision between drones with themselves and
+        # drones with obstacles
+        tmp = np.append(self.__drawn_drones[batchIndex], self.__collision)
+        if np.any(np.prod(tmp, axis=0)):
+            return True
+        return False
 
-    def __drawn_drone(self, positionVelocity):
+    def __draw_drone(self, positionVelocity):
         """
         This method return a level with a drone rendered in the provided
         position.
@@ -367,18 +427,26 @@ class DroneSimulator:
             Represent the level with the drones
 
         """
-        level = self.__stigmergy_space = np.zeros((
+        level = np.zeros((
                 self.__targets.shape[0],
                 self.__targets.shape[1]
             ))
         # This is for uninitialized drones
-        if position[0] < 0 or position[1] < 0:
+        if positionVelocity[0] < 0 or positionVelocity[1] < 0:
             return level
         # The drone for now it's a simple square
         # velocity is provided for future better representation of drone
         # TIPS: the bigger margin is + 2 because is not included in the slice
-        level[position[0] - 1 : position[0] + 2,
-            position[1] - 1 : position[1] + 2] = 1
+
+        # If drone will go outside of map it is considered dropped to ground
+        if positionVelocity[0] - 1 < 0 or positionVelocity[0] + 2 > self.__targets.shape[0]:
+            return level
+
+        if positionVelocity[1] - 1 < 0 or positionVelocity[1] + 2 > self.__targets.shape[1]:
+            return level
+
+        level[int(positionVelocity[0]) - 1 : int(positionVelocity[0]) + 2,
+            int(positionVelocity[1]) - 1 : int(positionVelocity[1]) + 2] = 1
         return level
 
     def __add_batch_dimension(self, matrix):
