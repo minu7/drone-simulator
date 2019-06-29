@@ -3,8 +3,33 @@ import random
 
 import numpy as np
 from PIL import Image
+from PyQt4.QtGui import *
+import threading
 
 np.set_printoptions(threshold=sys.maxsize)
+
+def rgb(r, g, b):
+    """
+    This function is needed for correctly colorize map
+
+    Parameters
+    ----------
+    r: int
+        red: 0 - 255
+    g: int
+        green: 0 - 255
+    b: int
+        blue: 0 - 255
+
+    Raises
+    ------
+    RuntimeError
+
+    Returns
+    -------
+    The color with qRgb
+    """
+    return 0xffffffff
 
 class DroneSimulator:
     """
@@ -114,7 +139,8 @@ class DroneSimulator:
         inertia,
         collision_detection,
         reward_function,
-        max_steps
+        max_steps,
+        render = False
         ):
         self.__batch_size = batch_size
         self.__observation_range = observation_range
@@ -170,8 +196,10 @@ class DroneSimulator:
         )
 
         self.__init_drones()
-        # print(self.__drawn_drones)
 
+        if batch_size == 1 and render:
+            rendering = threading.Thread(target=self.__init_render)
+            rendering.start()
 
     def step(actions):
         """
@@ -218,7 +246,7 @@ class DroneSimulator:
         raise NotImplementedError
 
     def render():
-        if self.__batch_size > 1:
+        if self.__batch_size > 1 and render:
             raise Exception("render is allowed only with batch_size equal to 1")
         raise NotImplementedError
 
@@ -472,3 +500,35 @@ class DroneSimulator:
         matrix = matrix[np.newaxis, ...]
         matrix = np.repeat(matrix, self.__batch_size, axis=0)
         return matrix
+
+
+    def __init_render(self):
+        """
+        This methods provide all struct for render the simulator
+
+        Parameters
+        ----------
+
+        Raises
+        ------
+        RuntimeError
+
+        Returns
+        -------
+
+        """
+        app = QApplication(sys.argv)
+        self.__w = QWidget()
+        self.__w.setWindowTitle("Drone Simulator")
+        label = QLabel(self.__w)
+        #
+        self.__image = np.zeros((self.__targets.shape[1],
+            self.__targets.shape[0]))
+        self.__image[True] = rgb(0, 0, 0)
+        qimage = QImage(self.__image.data, self.__image.shape[0],
+            self.__image.shape[1], QImage.Format_RGB32)
+        pixmap = QPixmap.fromImage(qimage)
+        label.setPixmap(pixmap)
+        self.__w.resize(pixmap.width(),pixmap.height())
+        self.__w.show()
+        app.exec_()
