@@ -139,7 +139,8 @@ class DroneSimulator:
         collision_detection,
         reward_function,
         max_steps,
-        render = False
+        render = False,
+        drone_colour = [255, 255, 255]
         ):
         self.__batch_size = batch_size
         self.__observation_range = observation_range
@@ -148,16 +149,16 @@ class DroneSimulator:
         self.__inertia = inertia
         self.__reward_function = reward_function
         self.__max_steps = max_steps
-
+        self.__drone_colour = drone_colour
+        
         # env and collision are divided only for render purpose
         self.__env = np.array([])
-        self.__env_colours = np.array([])
         self.__no_collision = np.array([])
-        self.__no_collision_colours = np.array([])
         self.__targets = np.array([])
-        self.__target_colour = np.array([])
+        # this enviroment will contain all initial bitmap,
+        # drones and stigmergy space will be added in render
+        self.__enviroment_bitmap = None
         self.__parse_bitmap(bitmap, collision_detection)
-
         # The collision will be detected only with this matrix because contain
         # all info necessary
         self.__collision = np.sum(self.__env, axis = 0)
@@ -265,10 +266,13 @@ class DroneSimulator:
         """
         if self.__batch_size > 1 and render:
             raise Exception("render is allowed only with batch_size equal to 1")
-        background = np.full((self.__targets.shape[0], self.__targets.shape[1], 3), 0)
-        background[True] = 255
+        # TODO: call __render in step function
+        self.__render()
+
+        drones = np.sum(self.__drawn_drones[0], axis=0)
+        self.__enviroment_bitmap[drones == 1, :] = self.__enviroment_bitmap[drones == 1, :] + self.__drone_colour
         self.__image_semaphore.acquire()
-        np.copyto(self.__image, background)
+        np.copyto(self.__image, self.__enviroment_bitmap)
         self.__image_semaphore.release()
 
 
@@ -311,9 +315,7 @@ class DroneSimulator:
         # here i have rgb_bit_array that is an array 2d with all cells are an
         # array of bit
         env = []
-        env_colours = []
         no_collision = []
-        no_collision_colours = []
         level_founded = 0
         for i in range(0, 24):
             level = rgb_bit_array[:, :, i]
@@ -323,20 +325,19 @@ class DroneSimulator:
                 if level_founded == 0:
                     # first level are targets
                     self.__targets = np.asarray(level).transpose()
-                    self.__target_colour = getColour(i)
+                    self.__enviroment_bitmap = np.full((self.__targets.shape[0],
+                        self.__targets.shape[1], 3), 0)
+                    self.__enviroment_bitmap[self.__targets == 1, :] = getColour(i)
                 else:
                     if collision_detection[level_founded - 1]:
                         env.append(level.transpose())
-                        env_colours.append(getColour(i))
                     else:
                         no_collision.append(level.transpose())
-                        no_collision_colours.append(getColour(i))
                 level_founded += 1
+                self.__enviroment_bitmap[level.transpose() == 1, :] = self.__enviroment_bitmap[level.transpose() == 1, :] + getColour(i)
 
         self.__env = np.asarray(env)
-        self.__env_colours = np.asarray(env_colours)
         self.__no_collision = np.asarray(no_collision)
-        self.__no_collision_colours = np.asarray(no_collision_colours)
 
     def __init_drones(self):
         """
@@ -554,6 +555,7 @@ class DroneSimulator:
         w.setWindowTitle('Drone simulator')
 
         view = pg.ViewBox()
+        view.invertY()
         w.setCentralItem(view)
 
         ## lock the aspect ratio
