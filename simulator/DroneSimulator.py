@@ -150,7 +150,7 @@ class DroneSimulator:
         self.__reward_function = reward_function
         self.__max_steps = max_steps
         self.__drone_colour = drone_colour
-        
+
         # env and collision are divided only for render purpose
         self.__env = np.array([])
         self.__no_collision = np.array([])
@@ -455,8 +455,14 @@ class DroneSimulator:
         """
         # tmp is useful for test collision between drones with themselves and
         # drones with obstacles
-        tmp = np.append(self.__drawn_drones[batchIndex], self.__collision)
-        if np.any(np.prod(tmp, axis=0)):
+        tmp = self.__collision[np.newaxis, ...]
+        # this is for see the drones that are gone out of the map
+        for i in range(self.__drawn_drones.shape[1]):
+            if not np.any(self.__drawn_drones[batchIndex][i]) and not np.array_equal(self.__drones_position[batchIndex][i], [-1, -1]):
+                return True
+        tmp = np.append(self.__drawn_drones[batchIndex], tmp, axis = 0)
+        tmp = np.sum(tmp, axis=0)
+        if np.any(tmp > 1):
             return True
         return False
 
