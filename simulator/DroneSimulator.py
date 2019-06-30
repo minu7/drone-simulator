@@ -1,3 +1,4 @@
+from __future__ import division
 import sys
 import random
 
@@ -5,21 +6,12 @@ import numpy as np
 from PIL import Image
 from PyQt4.QtGui import *
 import threading
-
+import time
 np.set_printoptions(threshold=sys.maxsize)
 
-def rgb(r, g, b):
+def getColour(i):
     """
-    This function is needed for correctly colorize map
-
-    Parameters
-    ----------
-    r: int
-        red: 0 - 255
-    g: int
-        green: 0 - 255
-    b: int
-        blue: 0 - 255
+    Given the position of only bit at 1, what is the colour in rgb?
 
     Raises
     ------
@@ -27,9 +19,14 @@ def rgb(r, g, b):
 
     Returns
     -------
-    The color with qRgb
+        np.array that represent the colour
     """
-    return 0xffffffff
+    # inverting the order of bit
+    i = 24 - i - 1
+    colour = np.zeros((3))
+    # red must be the first
+    colour[2 - i//8] = 2**(i%8)
+    return qRgb(colour[0], colour[1], colour[2])
 
 class DroneSimulator:
     """
@@ -152,9 +149,11 @@ class DroneSimulator:
 
         # env and collision are divided only for render purpose
         self.__env = np.array([])
+        self.__env_colours = np.array([])
         self.__no_collision = np.array([])
+        self.__no_collision_colours = np.array([])
         self.__targets = np.array([])
-
+        self.__target_colour = np.array([])
         self.__parse_bitmap(bitmap, collision_detection)
 
         # The collision will be detected only with this matrix because contain
@@ -177,7 +176,7 @@ class DroneSimulator:
                 self.__targets.shape[0],
                 self.__targets.shape[1]
             ))
-
+        self.__stigmergy_colours = np.array([])
         # Only for stigmergy_space and drones the batch dimension will be added
         # because is the only 2 levels that can change beetween batch the other
         # will be fixed
@@ -196,8 +195,8 @@ class DroneSimulator:
         )
 
         self.__init_drones()
-
         if batch_size == 1 and render:
+            self.__image_semaphore = threading.Lock()
             rendering = threading.Thread(target=self.__init_render)
             rendering.start()
 
@@ -245,10 +244,31 @@ class DroneSimulator:
         """
         raise NotImplementedError
 
-    def render():
+    def render(self):
+        """
+        This methods will update the current QImage.
+
+        Parameters
+        ----------
+
+        Raises
+        ------
+        RuntimeError
+
+
+        Returns
+        -------
+
+        """
         if self.__batch_size > 1 and render:
             raise Exception("render is allowed only with batch_size equal to 1")
-        raise NotImplementedError
+        background = np.full((self.__targets.shape[0], self.__targets.shape[1]),
+            qRgb(0, 0, 0))
+        background[self.__targets == 1] = self.__target_colour
+        self.__image_semaphore.acquire()
+        np.copyto(self.__image, background)
+        self.__w.update()
+        self.__image_semaphore.release()
 
 
     def __parse_bitmap(self, bitmap, collision_detection):
@@ -290,7 +310,9 @@ class DroneSimulator:
         # here i have rgb_bit_array that is an array 2d with all cells are an
         # array of bit
         env = []
+        env_colours = []
         no_collision = []
+        no_collision_colours = []
         level_founded = 0
         for i in range(0, 24):
             level = rgb_bit_array[:, :, i]
@@ -299,17 +321,21 @@ class DroneSimulator:
                 # environment
                 if level_founded == 0:
                     # first level are targets
-                    self.__targets = np.asarray(level)
+                    self.__targets = np.asarray(level).transpose()
+                    self.__target_colour = getColour(i)
                 else:
                     if collision_detection[level_founded - 1]:
-                        env.append(level)
+                        env.append(level.transpose())
+                        env_colours.append(getColour(i))
                     else:
-                        no_collision.append(level)
+                        no_collision.append(level.transpose())
+                        no_collision_colours.append(getColour(i))
                 level_founded += 1
 
         self.__env = np.asarray(env)
+        self.__env_colours = np.asarray(env_colours)
         self.__no_collision = np.asarray(no_collision)
-
+        self.__no_collision_colours = np.asarray(no_collision_colours)
 
     def __init_drones(self):
         """
@@ -517,18 +543,20 @@ class DroneSimulator:
         -------
 
         """
+        self.__image_semaphore.acquire()
         app = QApplication(sys.argv)
         self.__w = QWidget()
         self.__w.setWindowTitle("Drone Simulator")
         label = QLabel(self.__w)
-        #
-        self.__image = np.zeros((self.__targets.shape[1],
-            self.__targets.shape[0]))
-        self.__image[True] = rgb(0, 0, 0)
+        # This create the initial background
+        # the dimensions of the image are transposed
+        self.__image = np.full((self.__targets.shape[0],
+            self.__targets.shape[1]), qRgb(0, 0, 0))
         qimage = QImage(self.__image.data, self.__image.shape[0],
             self.__image.shape[1], QImage.Format_RGB32)
         pixmap = QPixmap.fromImage(qimage)
         label.setPixmap(pixmap)
         self.__w.resize(pixmap.width(),pixmap.height())
         self.__w.show()
+        self.__image_semaphore.release()
         app.exec_()

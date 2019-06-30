@@ -1,7 +1,7 @@
 from simulator.DroneSimulator import DroneSimulator
 import numpy as np
 
-DroneSimulator(bitmap = './test.bmp',
+drone_simulator = DroneSimulator(bitmap = './test.bmp',
     batch_size = 1,
     observation_range = 2,
     amount_of_drones = 2,
@@ -12,3 +12,5 @@ DroneSimulator(bitmap = './test.bmp',
     reward_function = 5,
     max_steps = 6,
     render = True)
+
+drone_simulator.render()
