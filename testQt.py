@@ -8,7 +8,7 @@ import time
 def thread_function():
     time.sleep(5)
     print("ciao")
-    im[True] = rgb(0, 0, 0)
+    im[0:40, 40:200] = rgb(0, 0, 255)
     w.update()
 
 def rgb(r, g, b):
@@ -20,7 +20,7 @@ w.setWindowTitle("Test ")
 
 # Create widget
 label = QLabel(w)
-im = np.full((200, 200), qRgb(0, 0, 255) + qRgb(255, 0, 0))
+im = np.full((200, 200), qRgb(0, 0, 0) + qRgb(0, 0, 0))
 # qim = QtGui.QImage(im.data, im.shape[1], im.shape[0], im.strides[0], QImage.Format_RGB888);
 qimage = QImage(im.data, im.shape[0], im.shape[1], QImage.Format_RGB32)
 

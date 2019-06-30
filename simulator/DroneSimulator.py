@@ -1,12 +1,14 @@
 from __future__ import division
 import sys
 import random
-
-import numpy as np
-from PIL import Image
-from PyQt4.QtGui import *
 import threading
 import time
+
+from pyqtgraph.Qt import QtCore, QtGui
+import numpy as np
+from PIL import Image
+import pyqtgraph as pg
+
 np.set_printoptions(threshold=sys.maxsize)
 
 def getColour(i):
@@ -26,7 +28,7 @@ def getColour(i):
     colour = np.zeros((3))
     # red must be the first
     colour[2 - i//8] = 2**(i%8)
-    return qRgb(colour[0], colour[1], colour[2])
+    return colour
 
 class DroneSimulator:
     """
@@ -193,9 +195,10 @@ class DroneSimulator:
         self.__drawn_drones = self.__add_batch_dimension(
             self.__drawn_drones
         )
-
         self.__init_drones()
         if batch_size == 1 and render:
+            self.__image = np.array([])
+            self.__image_item = None
             self.__image_semaphore = threading.Lock()
             rendering = threading.Thread(target=self.__init_render)
             rendering.start()
@@ -262,12 +265,10 @@ class DroneSimulator:
         """
         if self.__batch_size > 1 and render:
             raise Exception("render is allowed only with batch_size equal to 1")
-        background = np.full((self.__targets.shape[0], self.__targets.shape[1]),
-            qRgb(0, 0, 0))
-        background[self.__targets == 1] = self.__target_colour
+        background = np.full((self.__targets.shape[0], self.__targets.shape[1], 3), 0)
+        background[True] = 255
         self.__image_semaphore.acquire()
         np.copyto(self.__image, background)
-        self.__w.update()
         self.__image_semaphore.release()
 
 
@@ -278,7 +279,7 @@ class DroneSimulator:
         only one bit at 1 for obstacles and targets.
 
         Parameters
-        ----------
+        ----------qRgb(0, 0, 0)
         bitmap: str
             The path of the input bitmap
 
@@ -544,19 +545,25 @@ class DroneSimulator:
 
         """
         self.__image_semaphore.acquire()
-        app = QApplication(sys.argv)
-        self.__w = QWidget()
-        self.__w.setWindowTitle("Drone Simulator")
-        label = QLabel(self.__w)
-        # This create the initial background
-        # the dimensions of the image are transposed
-        self.__image = np.full((self.__targets.shape[0],
-            self.__targets.shape[1]), qRgb(0, 0, 0))
-        qimage = QImage(self.__image.data, self.__image.shape[0],
-            self.__image.shape[1], QImage.Format_RGB32)
-        pixmap = QPixmap.fromImage(qimage)
-        label.setPixmap(pixmap)
-        self.__w.resize(pixmap.width(),pixmap.height())
-        self.__w.show()
+        app = QtGui.QApplication([])
+
+        ## Create window with GraphicsView widget
+        w = pg.GraphicsView()
+        w.show()
+        w.resize(self.__targets.shape[0], self.__targets.shape[1])
+        w.setWindowTitle('Drone simulator')
+
+        view = pg.ViewBox()
+        w.setCentralItem(view)
+
+        ## lock the aspect ratio
+        view.setAspectLocked(True)
+
+        ## Create image item
+        self.__image = np.full((self.__targets.shape[0], self.__targets.shape[1], 3), 0)
+        img = pg.ImageItem(self.__image)
         self.__image_semaphore.release()
-        app.exec_()
+        view.addItem(img)
+
+        ## Start Qt event loop unless running in interactive mode or using pyside.
+        QtGui.QApplication.instance().exec_()
