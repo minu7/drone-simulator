@@ -167,6 +167,9 @@ class DroneSimulator:
         # Initial position equal to -1 is for see which drones must be
         # positioned yet
         self.__drones_position = np.full((amount_of_drones, 2), -1)
+        # This one is needed for save the true position, but i can draw a
+        # position with float
+        self.__drones_position_float = None
         self.__drones_velocity = np.zeros((amount_of_drones, 2))
         self.__drawn_drones = np.zeros((
                 amount_of_drones,
@@ -198,13 +201,11 @@ class DroneSimulator:
         )
         self.__init_drones()
         if batch_size == 1 and render:
-            self.__image = np.array([])
-            self.__image_item = None
             self.__image_semaphore = threading.Lock()
             rendering = threading.Thread(target=self.__init_render)
             rendering.start()
 
-    def step(actions):
+    def step(self, actions):
         """
         This methods allow to take actions for all drones and in all
         batch dimensions.
@@ -216,7 +217,7 @@ class DroneSimulator:
             dimension, the order of the drones must be in according to the id of
             the drones, so a drone with id 1 must be the first action.
             action_dimension: 2 + stigmergy_level * 2
-                - First 4 are cardinal dimension, they represent the movement,
+                - First 2 are cardinal dimension, they represent the movement,
                   so es [1, 0], this drone will move to the top of the
                   screen only 0 and 1 are allowed for the dimension.
                   (for the bottom [-1, 0])
@@ -246,7 +247,11 @@ class DroneSimulator:
                 achieved by drones, else will be false
 
         """
-        raise NotImplementedError
+        self.__drones_velocity = actions[:, :, 0:2] * self.__inertia + (1 - self.__inertia) * self.__drones_velocity
+        # with t = 1
+        self.__drones_position_float = self.__drones_position_float + self.__drones_velocity
+        self.__drones_position = np.copy(self.__drones_position_float).astype(int)
+        self.__render()
 
     def render(self):
         """
@@ -266,8 +271,6 @@ class DroneSimulator:
         """
         if self.__batch_size > 1 and render:
             raise Exception("render is allowed only with batch_size equal to 1")
-        # TODO: call __render in step function
-        self.__render()
 
         drones = np.sum(self.__drawn_drones[0], axis=0)
         self.__enviroment_bitmap[drones == 1, :] = self.__enviroment_bitmap[drones == 1, :] + self.__drone_colour
@@ -338,6 +341,7 @@ class DroneSimulator:
 
         self.__env = np.asarray(env)
         self.__no_collision = np.asarray(no_collision)
+        self.__image = np.full((self.__targets.shape[0], self.__targets.shape[1], 3), 0)
 
     def __init_drones(self):
         """
@@ -370,6 +374,7 @@ class DroneSimulator:
                 # a drone is not rendered if it leaves the map.
                 if np.any(self.__drones_position[batchIndex][droneIndex]) and not self.__detect_collision(batchIndex):
                     droneIndex += 1
+        self.__drones_position_float = np.copy(self.__drones_position).astype(float)
 
 
     def __render(self, batchIndex = None):
@@ -568,7 +573,6 @@ class DroneSimulator:
         view.setAspectLocked(True)
 
         ## Create image item
-        self.__image = np.full((self.__targets.shape[0], self.__targets.shape[1], 3), 0)
         img = pg.ImageItem(self.__image)
         self.__image_semaphore.release()
         view.addItem(img)
