@@ -245,6 +245,11 @@ class DroneSimulator:
             done: bool
                 will be true if the max_steps is reached or all targets will be
                 achieved by drones, else will be false
+            info: tuple
+                first number of drones,
+                second, number of env,
+                third, number of no_collision,
+                four, number of stigmergy_space
 
         """
         self.__drones_velocity = actions[:, :, 0:2] * self.__inertia + (1 - self.__inertia) * self.__drones_velocity
@@ -252,6 +257,45 @@ class DroneSimulator:
         self.__drones_position_float = self.__drones_position_float + self.__drones_velocity
         self.__drones_position = np.copy(self.__drones_position_float).astype(int)
         self.__render()
+        observations = []
+        for index, drones in enumerate(self.__drawn_drones):
+            observations.append(self.__get_observation(drones, index))
+
+    def __get_observation(self, drones, batchIndex):
+        """
+        This methods return observation of given batch
+
+        Parameters
+        ----------
+
+        Raises
+        ------
+        RuntimeError
+
+
+        Returns
+        -------
+        observation
+        """
+        drones_observation = []
+        for droneIndex in range(len(drones)):
+            # all drones except the one we are working with
+            other_drones = [drone for index, drone in enumerate(drones) if index != droneIndex]
+            drone_observation = np.array(other_drones)
+            drone_position = self.__drones_position[batchIndex][droneIndex]
+            drone_observation = drone_observation[:,
+                drone_position[0] - self.__observation_range:
+                drone_position[0] + self.__observation_range + 1,
+                drone_position[1] - self.__observation_range:
+                drone_position[1] + self.__observation_range + 1
+                ]
+            print(drone_position)
+            print(drone_observation)
+
+
+
+        print("stop")
+        exit()
 
     def render(self):
         """
@@ -339,8 +383,16 @@ class DroneSimulator:
                 level_founded += 1
                 self.__enviroment_bitmap[level.transpose() == 1, :] = self.__enviroment_bitmap[level.transpose() == 1, :] + getColour(i)
 
-        self.__env = np.asarray(env)
-        self.__no_collision = np.asarray(no_collision)
+        if not env:
+            self.__env = np.zeros((1, self.__targets.shape[0],
+                self.__targets.shape[1]))
+        else:
+            self.__env = np.asarray(env)
+        if not no_collision:
+            self.__no_collision = np.zeros((1, self.__targets.shape[0],
+                self.__targets.shape[1]))
+        else:
+            self.__no_collision = np.asarray(no_collision)
         self.__image = np.full((self.__targets.shape[0], self.__targets.shape[1], 3), 0)
 
     def __init_drones(self):

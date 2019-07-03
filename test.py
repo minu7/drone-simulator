@@ -4,7 +4,7 @@ import numpy as np
 drone_simulator = DroneSimulator(bitmap = './test-very-little.bmp',
     batch_size = 1,
     observation_range = 2,
-    amount_of_drones = 1,
+    amount_of_drones = 3,
     stigmation_evaporation_speed = np.array([1, 2, 3]),
     collision_detection = np.array([True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]), # with the first level after targets
     # a collision must be detected
